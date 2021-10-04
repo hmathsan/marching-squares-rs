@@ -1,7 +1,9 @@
 use macroquad::prelude::*;
-use ::rand::prelude::*;
+use noise::{NoiseFn, OpenSimplex};
 
-const RESOLUTION: i32 = 20;
+const RESOLUTION: i32 = 10;
+const STEP: f64 = 0.1;
+const Z_OFFSET: f64 = 0.03;
 
 fn window_config() -> Conf {
     Conf {
@@ -15,36 +17,42 @@ fn window_config() -> Conf {
 
 #[macroquad::main(window_config)]
 async fn main() {
-    let mut rng = ::rand::thread_rng();
-
+    let noise = OpenSimplex::new();
+    
     let cols: i32 = 1 + screen_width() as i32 / RESOLUTION;
     let rows: i32 = 1 + screen_height() as i32 / RESOLUTION;
 
-    let mut fields: Vec<Vec<i32>> = vec![vec![Default::default(); cols as usize]; rows as usize];
+    let mut fields: Vec<Vec<f64>> = vec![vec![Default::default(); cols as usize]; rows as usize];
 
     println!("cols {}; rows {}", cols - 1, rows - 1);
     println!("len {};{}", fields[0].len(), fields.len());
 
-    for i in 0..cols {
-        for j in 0..rows {
-            fields[j as usize][i as usize] = rng.gen_range(0..=1);
-        }
-    }
+    println!("{:?}", noise.get([100.0, 100.0, 1.0]));
 
+    let mut z: f64 = 0.0;
     loop {
         clear_background(GRAY);
 
         for i in 0..cols {
             for j in 0..rows {
+                fields[j as usize][i as usize] = noise.get([i as f64 * STEP, j as f64 * STEP, z]);
+            }
+        }
+    
+        z += Z_OFFSET;
+        // Draw dots
+        for i in 0..cols {
+            for j in 0..rows {
                 draw_circle((i * RESOLUTION) as f32, (j * RESOLUTION) as f32, RESOLUTION as f32 * 0.15, 
                     Color::from_rgba(
-                        (fields[j as usize][i as usize] * 255) as u8, 
-                        (fields[j as usize][i as usize] * 255) as u8, 
-                        (fields[j as usize][i as usize] * 255) as u8, 255)
+                        (fields[j as usize][i as usize] * 255.0).ceil() as u8, 
+                        (fields[j as usize][i as usize] * 255.0).ceil() as u8, 
+                        (fields[j as usize][i as usize] * 255.0).ceil() as u8, 255)
                 );
             }
         }
 
+        // Draw lines
         for i in 0..cols - 1 {
             for j in 0..rows - 1 {
                 let f_res = RESOLUTION as f32;
@@ -58,10 +66,10 @@ async fn main() {
                 let (d_x, d_y) = (x, y + f_res * 0.5);
 
                 let state = 
-                    fields[j as usize][i as usize] * 8 +
-                    fields[j as usize][(i + 1) as usize] * 4 +
-                    fields[(j + 1) as usize][(i + 1) as usize] * 2 +
-                    fields[(j + 1) as usize][i as usize] * 1;
+                    (fields[j as usize][i as usize].ceil() * 8.0) as i32 +
+                    (fields[j as usize][(i + 1) as usize].ceil() * 4.0) as i32 +
+                    (fields[(j + 1) as usize][(i + 1) as usize].ceil() * 2.0) as i32 +
+                    (fields[(j + 1) as usize][i as usize].ceil() * 1.0) as i32;
 
                 match state {
                     1 => draw_line(c_x, c_y, d_x, d_y, 1.0, WHITE),
@@ -88,13 +96,6 @@ async fn main() {
                 }
             }
         }
-
-
-        // draw_line(40.0, 40.0, 80.0, 80.0, 15.0, GREEN);
-        // draw_rectangle(screen_width() / 2.0 - 60.0, 100.0, 120.0, 60.0, GREEN);
-        // draw_circle(screen_width() - 30.0, screen_height() - 30.0, 15.0, YELLOW);
-
-        // draw_text("IT WORKS!", 20.0, 20.0, 30.0, DARKGRAY);
 
         next_frame().await
     }
